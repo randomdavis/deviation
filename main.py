@@ -2,35 +2,41 @@ import gradio as gr
 from geographiclib.geodesic import Geodesic
 import math
 
+METERS_TO_MILES = 1609.34
+
 about_text = """
-This tool is designed to calculate and compare the deviation from a target destination when a heading deviation is introduced during a journey. The application of this tool can be in various fields, including navigation, geography, aviation, and more. The default values are set to mimic Amelia Earhart's last flight.
+## About the Deviation Finder App
 
-### Process
-The calculation is performed in several steps:
+The Deviation Finder App is designed mainly for aviation purposes, to assist in calculating the deviation from a target destination based on input parameters such as initial coordinates, initial heading, distance travelled, and heading deviation. The app uses two methods for calculating the deviation: the Geographic Library method and a simple trigonometric method. It highlights the differences between the two methods and provides Google Maps links for the starting point, planned ending point, and actual ending point.
 
-1. **Input Parameters**: The user enters the initial coordinates of the journey (in the format latitude, longitude), the initial heading (in degrees from North), the distance travelled (in miles), the heading deviation (in degrees), and the number of decimal places to which the output should be rounded.
+### Geographic Library Method
 
-2. **Conversion of Heading Deviation**: The heading deviation is converted from degrees to radians, which is the standard unit for trigonometric calculations in Python's `math` module.
+The Geographic Library method employs the Inverse and Direct functions from the Geographic Library, which work with the Earth's ellipsoidal shape to provide accurate results even for long distances. The Inverse function calculates the geodesic (shortest) distance between two points on the Earth's surface by implementing a highly accurate algorithm called the Karney Inverse solution. This iterative method converges quickly to find the shortest distance and angles between two points, taking into account factors such as the Earth's semi-major and semi-minor axes and the flattening factor.
 
-3. **End Point Calculation**: The geodesic (i.e., the shortest path over the earth's surface) end points are calculated for both the actual and the correct journeys. The actual end point is calculated using the initial heading plus the heading deviation, and the correct end point is calculated using only the initial heading.
+The Direct function solves the direct geodesic problem, computing the destination point given a starting point, an initial azimuth (direction), and distance travelled along the Earth's surface. This function can be useful in navigation systems, surveying, and mapping applications.
 
-4. **Deviation Distance Calculation**: The deviation distance is calculated as the great-circle distance (i.e., the shortest distance over the earth's surface) between the actual and the correct end points. This distance is calculated in miles.
+### Trigonometric Method
 
-5. **Trigonometric Deviation Calculation**: The trigonometric deviation is calculated using the tangent of the heading deviation and the distance travelled.
+The trigonometric method calculates the deviation using a simple mathematical equation based on the tangent function. This method is less accurate than the Geographic Library method, as it does not consider the Earth's ellipsoidal shape and curvature.
 
-6. **Deviation Difference Calculation**: The difference in deviations is calculated as the absolute difference between the great-circle deviation and the trigonometric deviation.
+### Input Parameters
 
-All calculated values are then rounded to the specified number of decimal places.
+- Initial Coordinates (lat, long): The starting point of the journey, provided in latitude and longitude decimal format (e.g., 40.7128, -74.0060).
+- Initial Heading (degrees from North): The direction of travel at the start of the journey, expressed in degrees from true North (0° to 360°).
+- Distance Travelled (miles): The total distance travelled, in miles.
+- Heading Deviation (degrees): The deviation from the initial heading, in degrees. Positive values represent a deviation to the right, while negative values represent a deviation to the left.
+- Decimal Places: The number of significant decimal places to round the results.
 
-### Units
-* Initial Coordinates: Latitude and longitude in decimal degrees.
-* Initial Heading: Degrees from North, ranging from 0 to 360.
-* Distance Travelled: Miles.
-* Heading Deviation: Degrees, ranging from -180 to 180. Positive values indicate a clockwise deviation, and negative values indicate a counterclockwise deviation.
-* Decimal Places: The number of decimal places to round the output to.
+### Output Parameters
 
-Please note that due to the spherical nature of the Earth, the trigonometric calculation might not always give the exact deviation especially for longer distances. The great circle distance is a more accurate measure of the deviation.
+- Deviation from Target Destination (Geographic Library): The calculated deviation from the target destination using the Geographic Library method, in miles.
+- Deviation from Target Destination (Trigonometric): The calculated deviation from the target destination using the trigonometric method, in miles.
+- Difference in Deviations: The difference in deviation calculations between the Geographic Library and trigonometric methods, in miles.
+- Location Links: Google Maps links for the starting point, planned ending point, and actual ending point.
+
+The app's sample inputs are taken from Amelia Earhart's final planned flight, illustrating the significance of accurate deviation calculations in aviation.
 """
+
 
 def calculate_deviation(initial_coordinates: str, initial_heading: float, distance: float, heading_deviation: float,
                         decimal_places: int):
@@ -40,15 +46,15 @@ def calculate_deviation(initial_coordinates: str, initial_heading: float, distan
     starting_lat, starting_lon = map(float, initial_coordinates.split(','))
 
     # Create a Geodesic object
-    geo = Geodesic.WGS84
+    geo: Geodesic = Geodesic.WGS84
 
     # Calculate the actual and the correct end points
-    actual_end_point = geo.Direct(starting_lat, starting_lon, initial_heading + heading_deviation, distance * 1609.34)  # Convert miles to meters
-    correct_end_point = geo.Direct(starting_lat, starting_lon, initial_heading, distance * 1609.34)  # Convert miles to meters
+    actual_end_point = geo.Direct(starting_lat, starting_lon, initial_heading + heading_deviation, distance * METERS_TO_MILES)  # Convert miles to meters
+    correct_end_point = geo.Direct(starting_lat, starting_lon, initial_heading, distance * METERS_TO_MILES)  # Convert miles to meters
 
     # Calculate the deviation distance
     deviation_distance = geo.Inverse(actual_end_point['lat2'], actual_end_point['lon2'],
-                                     correct_end_point['lat2'], correct_end_point['lon2'])['s12'] / 1609.34  # Convert meters to miles
+                                     correct_end_point['lat2'], correct_end_point['lon2'])['s12'] / METERS_TO_MILES  # Convert meters to miles
 
     # Trigonometric calculation
     trig_deviation_distance = abs(distance * math.tan(heading_deviation_rad))
@@ -66,8 +72,8 @@ def calculate_deviation(initial_coordinates: str, initial_heading: float, distan
     actual_end_link = f"https://www.google.com/maps/?q={actual_end_point['lat2']},{actual_end_point['lon2']}"
     correct_end_link = f"https://www.google.com/maps/?q={correct_end_point['lat2']},{correct_end_point['lon2']}"
 
-    links = f"Starting Point: [Link]({starting_link})\n"
-    links += f"Planned Ending Point: [Link]({correct_end_link})\n"
+    links = f"Starting Point: [Link]({starting_link})\n\n"
+    links += f"Planned Ending Point: [Link]({correct_end_link})\n\n"
     links += f"Actual Ending Point: [Link]({actual_end_link})"
 
     return deviation_distance, trig_deviation_distance, deviation_difference, links
